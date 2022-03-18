@@ -82,7 +82,20 @@ class EasyWeb:
                 f"View function mapping is overriding an existing endpoint: {endpoint}"    
             )
         self.view_functions[endpoint] = view_func
-              
+
+    def route(
+        self,
+        rule: str,
+        endpoint: t.Optional[str] = None,
+        methods: t.Tuple[str] = None,
+        **options: t.Any
+    ) -> None:
+
+        def decorator(f):
+            self.add_url_rule(rule, endpoint, f, methods, **options)
+            return f
+        return decorator
+
     def run(
         self,
         host: t.Optional[str] = None,
@@ -138,7 +151,8 @@ class EasyWeb:
         adapter = self.url_map.bind_to_environ(request.environ)
         try:
             endpoint, values = adapter.match()
-            rv = self.view_functions[endpoint](request, **values)
+            view_function = self.view_functions[endpoint]
+            rv = view_function(request, **values)
         except HTTPException as e:
             return e
 

@@ -13,6 +13,9 @@ def test_url_with_param(request, **values):
 
 app.add_url_rule("/test/<int:id>", "test_url_with_param", test_url_with_param)
 
+@app.route("/test_decorator/<string:name>")
+def test_decorator(request, name):
+    return f"hello {name}"
 
 app.run()
 
