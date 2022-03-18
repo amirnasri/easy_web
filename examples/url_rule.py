@@ -1,0 +1,19 @@
+from easy_web import EasyWeb
+
+app = EasyWeb(__name__)
+
+def test_url(request):
+    return "hello world!"
+
+app.add_url_rule("/test", "test_url", test_url)
+
+
+def test_url_with_param(request, **values):
+    return str(values)
+
+app.add_url_rule("/test/<int:id>", "test_url_with_param", test_url_with_param)
+
+
+app.run()
+
+
