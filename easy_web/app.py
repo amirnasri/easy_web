@@ -4,6 +4,10 @@ import typing as t
 
 from werkzeug.routing import Map
 from werkzeug.routing import Rule
+from werkzeug.wrappers import Request
+from werkzeug.wrappers import Response
+from werkzeug.exceptions import HTTPException
+
 
 class EasyWeb:
     def __init__(
@@ -12,9 +16,12 @@ class EasyWeb:
     ):
         self.url_map = Map()
         self.view_functions: t.Dict[str, t.Callable] = {}
-        self.root_path = get_root_path(import_name)
+        self.root_path = self.get_root_path(import_name)
     
-    def get_root_path(import_name: str) -> str:
+    def get_root_path(
+        self,
+        import_name: str
+    ) -> str:
         """Detect the root path for this app. If it cannot be detected, default to
         current directory. 
 
@@ -66,7 +73,7 @@ class EasyWeb:
         else:
             methods = tuple(item.upper() for item in methods)
             
-        rule = Rule(rule, methods=methods, **options)
+        rule = Rule(rule, methods=methods, endpoint=endpoint, **options)
         self.url_map.add(rule)
         
         old_func = self.view_functions.get(endpoint)
@@ -116,3 +123,47 @@ class EasyWeb:
         from werkzeug.serving import run_simple
 
         run_simple(host, port, self, **options)
+
+    def dispatch_request(self, request: Request) -> Response:
+        """Does the request dispatching. Creates a url adapter and uses it to match
+        a rule to the request. It then calls the associated view function with the
+        request and matched values as the parameters.
+
+        Args:
+            request (Request): request to be dispatched.
+
+        Returns:
+            Response: response to be served.
+        """
+        adapter = self.url_map.bind_to_environ(request.environ)
+        try:
+            endpoint, values = adapter.match()
+            rv = self.view_functions[endpoint](request, **values)
+        except HTTPException as e:
+            return e
+
+        return Response(rv)
+
+    def wsgi_app(self, environ: dict, start_response: t.Callable) -> Response:
+        """The actual WSGI application. This called by the underlying werkzeug server
+        each time a request is received.
+
+        Args:
+            environ (dict): environment provided by the server.
+            start_response (t.Callable): callback to call to indicate start of a response.
+
+        Returns:
+            Response: the response to be served
+        """
+        request = Request(environ)
+        response = self.dispatch_request(request)
+        return response(environ, start_response)
+
+
+    def __call__(self, environ: dict, start_response: t.Callable) -> t.Any:
+        """The WSGI server calls the Flask application object as the
+        WSGI application. This calls ``wsgi_app``, which can be
+        wrapped to apply middleware.
+        """
+        return self.wsgi_app(environ, start_response)
+
